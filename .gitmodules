@@ -4,4 +4,4 @@ url = git@github.com:sanjinhub/hexo-theme-geek.git
 
 [submodule "themes/Lights"]
 path = themes/Lights
-url = git@github.com:Secd0g/Hexo-Lights.git
+url = git@github.com:0sx86/Hexo-Lights.git
