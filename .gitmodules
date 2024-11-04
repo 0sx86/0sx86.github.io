@@ -1,3 +1,7 @@
+[submodule "themes/hexo-theme-geek"]
+path = themes/hexo-theme-geek
+url = git@github.com:sanjinhub/hexo-theme-geek.git
+
 [submodule "themes/Lights"]
 path = themes/Lights
 url = git@github.com:Secd0g/Hexo-Lights.git
