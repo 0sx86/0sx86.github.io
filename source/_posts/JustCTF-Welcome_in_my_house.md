@@ -1,8 +1,11 @@
 ---
 title: JustCTF 2023 - Welcome to my house
 date: 2024-02-11
-tags: heap exploitation, house of force
-category: pwn
+tags: 
+- heap exploitation
+- house of force
+category: 
+- pwn
 ---
 
 # Découverte du challenge
