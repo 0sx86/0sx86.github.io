@@ -71,7 +71,7 @@ pwndbg> vis
 0x55555555b0f0	0x0000000000000000	0x0000000000000000	................
 0x55555555b100	0x0000000000000000	0x0000000000000000	................
 0x55555555b110	0x0000000000000000	0x0000000000000000	................
-0x55555555b120	0x0000000000000000	0x0000000000020ee1	................	 <-- Top chunk
+0x55555555b120	0x0000000000000000	0x0000000000020ee1	................   <-- Top chunk
 ```
 
 Par la suite, on free le premier chunk, malloc va alors l'ajouter dans ```unsortedbin```. 
@@ -79,7 +79,7 @@ Par la suite, on free le premier chunk, malloc va alors l'ajouter dans ```unsort
 ```c
 pwndbg> vis
 
-0x55555555b000	0x0000000000000000	0x0000000000000091	................	 <-- unsortedbin[all][0]
+0x55555555b000	0x0000000000000000	0x0000000000000091	................   <-- unsortedbin[all][0]
 0x55555555b010	0x00007ffff7dd1b78	0x00007ffff7dd1b78	x.......x.......   // Les pointeurs FD et BK 
 0x55555555b020	0x0000000000000000	0x0000000000000000	................   // sont set à l'adresse du
 0x55555555b030	0x0000000000000000	0x0000000000000000	................   // fake chunk de unsortedbin
@@ -97,7 +97,7 @@ pwndbg> vis
 0x55555555b0f0	0x0000000000000000	0x0000000000000000	................
 0x55555555b100	0x0000000000000000	0x0000000000000000	................
 0x55555555b110	0x0000000000000000	0x0000000000000000	................
-0x55555555b120	0x0000000000000000	0x0000000000020ee1	................	 <-- Top chunk
+0x55555555b120	0x0000000000000000	0x0000000000020ee1	................   <-- Top chunk
 ```
 
 Au moment de free le chunk, malloc va se servir des deux premiers quadword des users data comme deux pointeurs FD et BK.
