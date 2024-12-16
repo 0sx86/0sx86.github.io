@@ -21,6 +21,7 @@ The Windows API is Microsoft’s core set of APIs, allowing developers to create
 When we try to log into a user account, if the credentials are incorrect, we may see the Logon Failure in the event viewer : Security Section, Event ID 4625.
 
 ![](/images/trigger-lsass.png)
+![](/images/trigger-lsass-log.png)
 
 
 # Interactive logon
@@ -42,6 +43,8 @@ LSA calls the MSV1_0 authentication package to process GINA-enforced logon data 
 
 By reversing ntdll.dll, we realize that to write in the security logs, lsass.exe will use a function called EtwWriteUMSecurityEvent which is based on the return value sent by the NTTraceEvent function to define the event.
 In summary: NTTraceEvent checks whether there was a system error or not. If yes, he will return the system error code, then EtwWriteUMSecurityEvent will use this code with the RtlNtStatusToDosError function to return into the RAX registry the specified NTSTATUS code to its equivalent system error code.
+
+![](/images/ntstatuscode.png)
 
 ## Exploitation
 The goal of a process injection is to inject a piece of code into the process memory address space of another process, give this memory address space execution permissions, and then execute the injected code. 
@@ -65,10 +68,17 @@ This function returns an address of the DLL loaded into the process. Considering
 Using OpenProcess and providing the target process ID as one of its parameters, the injector process receives a handle to the remote process. 
 WriteProcessMemory function performs the actual injection, inserting the malicious payload into the target process.
 
+![](/images/openprocess.png)
+![](/images/writeprocess.png)
+
 ### Step 3: writing and injecting the payload
 The payload is quite simple : ‘0xc3’. In order to bypass the function, the injecting function writes the ‘RETN’ instruction in the memory space address of the ETwWriteSecurityEvent function.
 
+![](/images/shellcode.png)
+
 Be careful to implement the shellcode in absolute address x64, otherwise the event viewer sends a 521 error (Unable to log event to security log).
+
+![](/images/event521.png)
 
 ### Step 4: trigger lsass to verify if the shellcode works well
 To do that, we take fake credentials and we try to open a random process.
@@ -86,10 +96,16 @@ function Local:Trigger-Lsass
 
 Here, we try to open a notepad process. Once run, the program will trigger Lsass and we won’t be able to see logon failure in the event viewer.
 
+![](/images/exploit.png)
+![](/images/event4625.png)
+
 ### Bonus step: cover our tracks
 Once the memory of the Lsass process is changed, all future processes that want to use ntdll.dll will see the function's new behavior. Here, we read and save the memory value of EtwWriteUMSecurityEvent before we modify it, to be able to put it back in its initial state after our passage.
 
 To do this we need a process, a memory address in the process and the number of bytes to read. Then we return the read buffer.
+
+![](/images/memoryvalue.png)
+![](/images/inject.png)
 
 # Detection
 
