@@ -20,7 +20,7 @@ The Windows API is Microsoft’s core set of APIs, allowing developers to create
 
 When we try to log into a user account, if the credentials are incorrect, we may see the Logon Failure in the event viewer : Security Section, Event ID 4625.
 
-![](Bypass-security-log-event-using-process-memory-injection/trigger-lsass.ppm)
+![](/images/trigger-lsass.png)
 
 
 # Interactive logon
