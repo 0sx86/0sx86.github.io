@@ -20,6 +20,8 @@ The Windows API is Microsoft’s core set of APIs, allowing developers to create
 
 When we try to log into a user account, if the credentials are incorrect, we may see the Logon Failure in the event viewer : Security Section, Event ID 4625.
 
+![](trigger-lsass.ppm)
+
 
 # Interactive logon
 Winlogon is the process responsible for managing security-related user interactions. It coordinates logon, starts the user’s first process at logon, and handles logoff. It also manages various other operations relevant to security. 
